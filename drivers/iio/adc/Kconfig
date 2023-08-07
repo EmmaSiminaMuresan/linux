@@ -1640,4 +1640,14 @@ config VERSAL_SYSMON
 
 	  The driver can also be build as a module. If so, the module will be called
 	  versal-sysmon.
+
+
+
+config IIO_ADI_EMU
+	tristate "Analog Device IIO Emulator driver"
+	depends on SPI
+	select SPI_ADI_EMU
+	help
+		Say yes here to enable support for Analog Devices IIO Emulator driver. 
+		To compile this driver as a module, choose M here: the module will be called iio-adi-emu.
 endmenu
