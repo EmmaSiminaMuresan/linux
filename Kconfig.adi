@@ -3,6 +3,7 @@
 
 config KERNEL_ALL_ADI_DRIVERS
 	tristate "Build all Analog Devices Kernel Drivers"
+	imply IIO_ADI_EMU
 	imply SPI
 	imply I2C
 	imply IIO
