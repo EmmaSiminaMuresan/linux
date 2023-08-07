@@ -1640,4 +1640,17 @@ config VERSAL_SYSMON
 
 	  The driver can also be build as a module. If so, the module will be called
 	  versal-sysmon.
+
+config AD5592
+	tristate "Analog Devices AD5592 ADC driver"
+	depends on SPI
+	help
+	  Say yes here to have support for the Analog Devices AD5592.
+	  The driver will enable users to read data from the ADXL327 
+	  accelerometer on SPI.
+	  The usecases of the HW are not fully exploited. Only the
+	  functionalities specific t this application are used.
+
+	  The driver can also be build as a module. If so, the module will be
+	  called ad5592.
 endmenu
