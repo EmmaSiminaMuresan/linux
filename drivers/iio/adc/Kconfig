@@ -6,6 +6,16 @@
 
 menu "Analog to digital converters"
 
+config AD5592R_S
+	tristate "Analog Device AD5592R driver"
+	depends on SPI
+	help
+		Say yes here to enable support for Analog Devices AD5592R
+		driver.
+		
+		To compile this driver as a module, choose M here: the module will be
+		called AD5592R.
+
 config AB8500_GPADC
 	bool "ST-Ericsson AB8500 GPADC driver"
 	depends on AB8500_CORE && REGULATOR_AB8500
