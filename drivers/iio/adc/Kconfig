@@ -776,7 +776,7 @@ config IIO_ADI_EMU
 	depends on SPI
 	select SPI_ADI_EMU
 	help
-	   Say yes here to enable support for Analog Devices IIO Emulator driver.
+	   Say yes here to enable support for "Analog Devices IIO Emulator driver".
 
 
 config INA2XX_ADC
