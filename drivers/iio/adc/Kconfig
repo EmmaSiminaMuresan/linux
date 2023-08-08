@@ -1640,4 +1640,11 @@ config VERSAL_SYSMON
 
 	  The driver can also be build as a module. If so, the module will be called
 	  versal-sysmon.
+
+config AD5592R_S
+	tristate "Analog Device AD5592R ANALOG TO DIGITAL CONVERTOR driver"
+	depends on SPI
+	help
+		Say yes here to enable support for Analog Devices AD5592R ADC driver. 
+		To compile this driver as a module, choose M here: the module will be called ad5592r_s.
 endmenu
