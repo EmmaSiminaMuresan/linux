@@ -68,6 +68,15 @@ config IIO_TRIGGERED_EVENT
 	help
 	  Provides helper functions for setting up triggered events.
 
+config IIO_ADI_EMU
+    tristate "Analog Devices IIO Emulator driver"
+    depends on SPI
+    select SPI_ADI_EMU
+    help
+      Say yes here to enable support for Analog Devices IIO Emulator driver.
+
+      To compile this driver as a module, choose M here: the module will be called iio-adi-emu.
+
 source "drivers/iio/accel/Kconfig"
 source "drivers/iio/adc/Kconfig"
 source "drivers/iio/addac/Kconfig"
