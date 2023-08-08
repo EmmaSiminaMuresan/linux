@@ -36,6 +36,7 @@
 		compatible = "usb-nop-xceiv";
 		reset-gpios = <&gpio0 46 GPIO_ACTIVE_LOW>;
 	};
+	
 };
 
 &clkc {

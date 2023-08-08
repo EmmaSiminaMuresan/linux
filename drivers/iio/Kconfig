@@ -95,7 +95,8 @@ source "drivers/iio/orientation/Kconfig"
 source "drivers/iio/test/Kconfig"
 if IIO_TRIGGER
    source "drivers/iio/trigger/Kconfig"
-endif #IIO_TRIGGER
+endif 
+#IIO_TRIGGER
 source "drivers/iio/position/Kconfig"
 source "drivers/iio/potentiometer/Kconfig"
 source "drivers/iio/potentiostat/Kconfig"

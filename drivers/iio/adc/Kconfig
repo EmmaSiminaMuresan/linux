@@ -1641,3 +1641,13 @@ config VERSAL_SYSMON
 	  The driver can also be build as a module. If so, the module will be called
 	  versal-sysmon.
 endmenu
+
+config AD5592R_S
+	tristate "Analog Devices iio driver for AD5592R ADC"
+	depends on SPI
+	help
+		Say yes here to enable support for Analog Devices AD5592R_S ADC
+		driver.
+
+		To compile this driver as a module, choose M here: the module will be
+		called iio-adi-emu.
