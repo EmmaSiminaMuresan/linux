@@ -6,7 +6,7 @@
     status = "okay";
     ad5592r_s@0{
         reg = <0>;
-        compatible = "adi,ad5592r_s";
+        compatible ="ad5592r_s";
         spi-max-frequency = <1000000>;
     };
 };
