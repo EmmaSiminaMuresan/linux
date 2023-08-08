@@ -30,7 +30,7 @@ static int ad5592r_s_probe(struct spi_device *spi)
 
 static struct spi_driver ad5592r_s_driver = {
 	.driver = {
-		.name = "adi,ad5592r_s",
+		.name = "ad5592r_s",
 	},
 	.probe = ad5592r_s_probe,
 };
