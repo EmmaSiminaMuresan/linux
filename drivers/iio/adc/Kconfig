@@ -168,6 +168,14 @@ config AD738X
           To compile this driver as a module, choose M here: the module will be
           called ad738x.
 
+config AD5592R_S
+	tristate "Analog Devices AD5592R ADC driver"
+	depends on SPI
+	help 
+		Say yes here to enable support for Analog Devices AD5592R ADC driver.
+		To compile this driver as a module, choose M here: the module will be
+		called ad5592r_s.
+
 config AD7476
 	tristate "Analog Devices AD7476 1-channel ADCs driver and other similar devices from AD and TI"
 	depends on SPI
