@@ -73,6 +73,15 @@ config AD4630
 	  To compile this driver as a module, choose M here: the module will be
 	  called ad4630.
 
+config AD5592r
+    tristate "Analog Device AD5592r ADC Driver"
+	depends on SPI
+	help 
+	Say yes here to enable support for Analog Devices AD5592r ADC driver.
+
+	  To compile this driver as a module, choose M here: the module will be
+	  called ad5592r.
+
 config AD7091R5
 	tristate "Analog Devices AD7091R5 ADC Driver"
 	depends on I2C
