@@ -66,3 +66,5 @@
 	dr_mode = "host";
 	usb-phy = <&usb_phy0>;
 };
+
+
