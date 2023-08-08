@@ -10,8 +10,45 @@
 
 #include <linux/iio/iio.h>
 
-static const struct iio_info ad5592r_s_info = {
+// Read channel and, depending on the channel, return a value
+static int ad5592r_s_read_raw(struct iio_dev *indio_dev,
+			    struct iio_chan_spec const *chan,
+			    int *val,
+			    int *val2,
+			    long mask) {
+	switch (mask)
+	{
+	case IIO_CHAN_INFO_RAW:
+		if (chan->channel)
+			*val = 10;
+		else
+			*val = 22;
+		return IIO_VAL_INT;
+		break;
 
+	default:
+		return -EINVAL;
+		break;
+	}
+}
+
+static const struct iio_info ad5592r_s_info = {
+    .read_raw = &ad5592r_s_read_raw,
+};
+
+static const struct iio_chan_spec ad5592r_s_channel[] = {
+	{
+		.type = IIO_VOLTAGE,
+		.channel = 0,
+		.indexed = 1,
+		.info_mask_separate = BIT(IIO_CHAN_INFO_RAW),
+	},
+	{
+		.type = IIO_VOLTAGE,
+		.channel = 1,
+		.indexed = 1,
+		.info_mask_separate = BIT(IIO_CHAN_INFO_RAW),
+	},
 };
 
 static int ad5592r_s_probe(struct spi_device *spi) {
@@ -24,6 +61,8 @@ static int ad5592r_s_probe(struct spi_device *spi) {
 
 	indio_dev->name = "ad5592r_s";
 	indio_dev->info =  &ad5592r_s_info;
+	indio_dev->channels = ad5592r_s_channel;
+	indio_dev->num_channels = ARRAY_SIZE(ad5592r_s_channel);
 
 	return devm_iio_device_register(&spi->dev, indio_dev);
 }
