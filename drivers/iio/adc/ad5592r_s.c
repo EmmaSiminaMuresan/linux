@@ -19,10 +19,19 @@ static int ad5592r_s_read_raw(struct iio_dev *indio_dev,
 	switch (mask)
 	{
 	case IIO_CHAN_INFO_RAW:
-		if (chan->channel)
+		if (chan->channel == 0) {
 			*val = 10;
-		else
-			*val = 22;
+		} else if (chan->channel == 1) {
+			*val = 20;
+		} else if (chan->channel == 2) {
+			*val = 30;
+		} else if (chan->channel == 3) {
+			*val = 40;
+		} else if (chan->channel == 4) {
+			*val = 50;
+		} else if (chan->channel == 5) {
+			*val = 60;
+		}
 		return IIO_VAL_INT;
 		break;
 
@@ -46,6 +55,30 @@ static const struct iio_chan_spec ad5592r_s_channel[] = {
 	{
 		.type = IIO_VOLTAGE,
 		.channel = 1,
+		.indexed = 1,
+		.info_mask_separate = BIT(IIO_CHAN_INFO_RAW),
+	},
+	{
+		.type = IIO_VOLTAGE,
+		.channel = 2,
+		.indexed = 1,
+		.info_mask_separate = BIT(IIO_CHAN_INFO_RAW),
+	},
+	{
+		.type = IIO_VOLTAGE,
+		.channel = 3,
+		.indexed = 1,
+		.info_mask_separate = BIT(IIO_CHAN_INFO_RAW),
+	},
+	{
+		.type = IIO_VOLTAGE,
+		.channel = 4,
+		.indexed = 1,
+		.info_mask_separate = BIT(IIO_CHAN_INFO_RAW),
+	},
+	{
+		.type = IIO_VOLTAGE,
+		.channel = 5,
 		.indexed = 1,
 		.info_mask_separate = BIT(IIO_CHAN_INFO_RAW),
 	},
