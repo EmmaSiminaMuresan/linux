@@ -3,12 +3,15 @@
 #include <linux/iio/iio.h>
 //#include <stdbool.h>
 //#include <asm-generic/errno.h>
+//#include <stdint-gcc.h>
 //#include "../../../include/linux/iio/types.h"
 //#include "../../../include/linux/iio/iio.h"
 //#include "../industrialio-core.c"
 
 struct adi_emu_state {
 	bool en;
+	u16 tmp_chan0;
+	u16 tmp_chan1;
 };
 
 int adi_emu_read_raw(struct iio_dev *indio_dev,
@@ -21,9 +24,9 @@ int adi_emu_read_raw(struct iio_dev *indio_dev,
 	switch (mask) {
 		case IIO_CHAN_INFO_RAW:
 			if (chan->channel) {
-				*val = 10;
+				*val = st->tmp_chan1;
 			} else {
-				*val = 22;
+				*val = st->tmp_chan0;
 			}
 			return IIO_VAL_INT;
 		case IIO_CHAN_INFO_ENABLE:
@@ -42,6 +45,13 @@ int adi_emu_write_raw(struct iio_dev *indio_dev,
 {
 	struct adi_emu_state *st = iio_priv(indio_dev);
 	switch (mask) {
+		case IIO_CHAN_INFO_RAW:
+			if (chan->channel) {
+				st->tmp_chan1 = val;
+			} else {
+				st->tmp_chan0 = val;
+			}
+			return 0;
 		case IIO_CHAN_INFO_ENABLE:
 			st->en = val;
 			return 0;
@@ -82,6 +92,8 @@ static int adi_emu_probe(struct spi_device *spi) {
 
 	pv = iio_priv(indio_dev);
 	pv->en = 0;
+	pv->tmp_chan0 = 0;
+	pv->tmp_chan1 = 0;
 
 	indio_dev->name = "iio-adi-emu";
 	indio_dev->info = &adi_emu_info;
