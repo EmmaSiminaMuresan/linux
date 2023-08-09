@@ -10,12 +10,10 @@
 
 #include <linux/iio/iio.h>
 
-// This is the state of the device
 struct ad5592r_s_state
 {
 	bool en;
-	u16 tmp_chan0;
-	u16 tmp_chan1;
+	u16 tmp_chan[6];
 };
 
 // Read channel and, depending on the channel, return a value
@@ -29,10 +27,30 @@ static int ad5592r_s_read_raw(struct iio_dev *indio_dev,
 	switch (mask)
 	{
 	case IIO_CHAN_INFO_RAW:
-		if (chan->channel)
-			*val = st->tmp_chan1;
-		else
-			*val = st->tmp_chan0;
+		switch (chan->channel)
+		{
+		case 0:
+			*val = st->tmp_chan[0];
+			break;
+		case 1:
+			*val = st->tmp_chan[1];
+			break;
+		case 2:
+			*val = st->tmp_chan[2];
+			break;
+		case 3:
+			*val = st->tmp_chan[3];
+			break;
+		case 4:
+			*val = st->tmp_chan[4];
+			break;
+		case 5:
+			*val = st->tmp_chan[5];
+			break;
+		default:
+			return -EINVAL;
+			break;
+		}
 		return IIO_VAL_INT;
 
 	case IIO_CHAN_INFO_ENABLE:
@@ -44,7 +62,6 @@ static int ad5592r_s_read_raw(struct iio_dev *indio_dev,
 	}
 }
 
-// Write
 static int ad5592r_s_write_raw(struct iio_dev *indio_dev,
 			       struct iio_chan_spec const *chan,
 			       int val,
@@ -55,10 +72,30 @@ static int ad5592r_s_write_raw(struct iio_dev *indio_dev,
 	switch (mask)
 	{
 	case IIO_CHAN_INFO_RAW:
-		if (chan->channel)
-			st->tmp_chan1 = val;
-		else
-			st->tmp_chan0 = val;
+		switch (chan->channel)
+		{
+		case 0:
+			st->tmp_chan[0] = val;
+			break;
+		case 1:
+			st->tmp_chan[1] = val;
+			break;
+		case 2:
+			st->tmp_chan[2] = val;
+			break;
+		case 3:
+			st->tmp_chan[3] = val;
+			break;
+		case 4:
+			st->tmp_chan[4] = val;
+			break;
+		case 5:
+			st->tmp_chan[5] = val;
+			break;
+		default:
+			return -EINVAL;
+			break;
+		}
 		return 0;
 
 	case IIO_CHAN_INFO_ENABLE:
@@ -90,6 +127,34 @@ static const struct iio_chan_spec ad5592r_s_channel[] = {
 		.info_mask_separate = BIT(IIO_CHAN_INFO_RAW),
 		.info_mask_shared_by_all = BIT(IIO_CHAN_INFO_ENABLE),
 	},
+	{
+		.type = IIO_VOLTAGE,
+		.channel = 2,
+		.indexed = 1,
+		.info_mask_separate = BIT(IIO_CHAN_INFO_RAW),
+		.info_mask_shared_by_all = BIT(IIO_CHAN_INFO_ENABLE),
+	},
+	{
+		.type = IIO_VOLTAGE,
+		.channel = 3,
+		.indexed = 1,
+		.info_mask_separate = BIT(IIO_CHAN_INFO_RAW),
+		.info_mask_shared_by_all = BIT(IIO_CHAN_INFO_ENABLE),
+	},
+	{
+		.type = IIO_VOLTAGE,
+		.channel = 4,
+		.indexed = 1,
+		.info_mask_separate = BIT(IIO_CHAN_INFO_RAW),
+		.info_mask_shared_by_all = BIT(IIO_CHAN_INFO_ENABLE),
+	},
+	{
+		.type = IIO_VOLTAGE,
+		.channel = 5,
+		.indexed = 1,
+		.info_mask_separate = BIT(IIO_CHAN_INFO_RAW),
+		.info_mask_shared_by_all = BIT(IIO_CHAN_INFO_ENABLE),
+	},
 };
 
 static int ad5592r_s_probe(struct spi_device *spi)
@@ -104,8 +169,16 @@ static int ad5592r_s_probe(struct spi_device *spi)
 
 	st = iio_priv(indio_dev);
 	st->en = 0;
-	st->tmp_chan0 = 0;
-	st->tmp_chan1 = 0;
+	st->tmp_chan[0] = 0;
+	st->tmp_chan[1] = 0;
+	st->tmp_chan[2] = 0;
+	st->tmp_chan[3] = 0;
+	st->tmp_chan[4] = 0;
+	st->tmp_chan[5] = 0;
+
+	// for (int i = 0; i < 6; ++i) {
+	// 	st->tmp_chan[i] = 0;
+	// }
 
 	indio_dev->name = "ad5592r_s";
 	indio_dev->info = &ad5592r_s_info;
@@ -116,10 +189,10 @@ static int ad5592r_s_probe(struct spi_device *spi)
 }
 
 static struct spi_driver ad5592r_s_driver = {
-	.driver = {
-		.name = "ad5592r_s",
-	},
-	.probe = ad5592r_s_probe,
+    .driver = {
+	.name = "ad5592r_s",
+    },
+    .probe = ad5592r_s_probe,
 };
 module_spi_driver(ad5592r_s_driver);
 
