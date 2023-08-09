@@ -10,48 +10,110 @@
 
 #include <linux/iio/iio.h>
 
-static int adi_emu_read_raw(struct iio_dev *indio_dev, 
+struct ad5592r_s_state {
+	bool en;
+	u16 tmp_chan0;
+	u16 tmp_chan1;
+	u16 tmp_chan2;
+	u16 tmp_chan3;
+	u16 tmp_chan4;
+	u16 tmp_chan5;
+
+};
+
+static int ad5592r_s_read_raw(struct iio_dev *indio_dev, 
 			                struct iio_chan_spec const *chan,
 			                int *val,
 			                int *val2,
 			                long mask)
 { 
+  struct ad5592r_s_state *st = iio_priv(indio_dev);
+  
   switch (mask){
   case IIO_CHAN_INFO_RAW:
 	  switch (chan->channel)
 	  {
 	  case 0:
-		  *val = 0;
+		  *val = st->tmp_chan0;
 		  break;
 	  case 1:
-		  *val = 10;
+		  *val = st->tmp_chan1;
 		  break;
 	  case 2:
-		  *val = 20;
+		  *val = st->tmp_chan2;
 		  break;
 	  case 3:
-	      *val = 30;
+	      *val = st->tmp_chan3;
 		  break;	  	  	  
 	  case 4:
-		  *val = 40;
+		  *val = st->tmp_chan4;
 		  break;
 	  case 5:
-		  *val = 50;
+		  *val = st->tmp_chan5;
 		  break;
 	  default:
 	      return  100;
 		  break;
 	  }	
 	 return IIO_VAL_INT;
+  case IIO_CHAN_INFO_ENABLE:
+			*val  = st->en;
+     return IIO_VAL_INT;
   
   default:
 	  return -EINVAL;
   }	
-}				
+}		
+
+static int ad5592r_s_write_raw(struct iio_dev *indio_dev, 
+			     struct iio_chan_spec const *chan,
+			     int val,
+			     int val2,
+			     long mask)
+{
+	struct ad5592r_s_state *st = iio_priv(indio_dev);
+
+	switch (mask){
+  	case IIO_CHAN_INFO_RAW:
+	  switch (chan->channel)
+	  {
+	  case 0:
+		  st->tmp_chan0 = val;
+		  break;
+	  case 1:
+		  st->tmp_chan1 = val;
+		  break;
+	  case 2:
+		  st->tmp_chan2 = val;
+		  break;
+	  case 3:
+	      st->tmp_chan3 = val;
+		  break;	  	  	  
+	  case 4:
+		  st->tmp_chan4 = val;
+		  break;
+	  case 5:
+		  st->tmp_chan5 = val;
+		  break;
+	  default:
+	      return  100;
+		  break;
+	  }	
+	 	return 0;
+
+  	case IIO_CHAN_INFO_ENABLE:
+	  	st->en = val;
+	  	return 0; // succes
+	default: 
+		return -EINVAL;
+	}	
+
+}
 
 
 static const struct iio_info ad5592r_s_info = {
-	.read_raw = &adi_emu_read_raw,
+	.read_raw = &ad5592r_s_read_raw,
+	.write_raw = &ad5592r_s_write_raw,
 };
 
 static const struct iio_chan_spec ad5592r_channel[] ={
@@ -62,6 +124,7 @@ static const struct iio_chan_spec ad5592r_channel[] ={
 		.channel = 0,
 		.indexed = 1,  // ca sa puna numar la sfarsitul canalului
 		.info_mask_separate = BIT(IIO_CHAN_INFO_RAW),
+		.info_mask_shared_by_all = BIT(IIO_CHAN_INFO_ENABLE), 
 	},
 	{
 	
@@ -104,10 +167,20 @@ static const struct iio_chan_spec ad5592r_channel[] ={
 static int ad5592r_s_probe(struct spi_device *spi)
 {
          struct iio_dev *indio_dev;
+		 struct ad5592r_s_state *st;
 
 	 indio_dev = devm_iio_device_alloc(&spi->dev, 0);
 	 if (!indio_dev)
 	 	return -ENOMEM; //mesaj de eroare Eroare de memorie
+
+    st = iio_priv(indio_dev);
+	st->en = 0; // valoarea 0 la inceput
+	st->tmp_chan0 = 0;
+	st->tmp_chan1 = 0;
+	st->tmp_chan2 = 0;
+	st->tmp_chan3 = 0;
+	st->tmp_chan4 = 0;
+	st->tmp_chan5 = 0;
 
 	indio_dev->name = "ad5592r_s";
 	indio_dev->info = &ad5592r_s_info;
@@ -118,13 +191,13 @@ static int ad5592r_s_probe(struct spi_device *spi)
 }
 
 
-static struct spi_driver adi_emu_driver = {
+static struct spi_driver ad5592r_s_driver = {
         .driver = {
 			.name = "ad5592r_s", // similar cu nume fisier
 	},
 	.probe = ad5592r_s_probe,
 };
-module_spi_driver(adi_emu_driver);
+module_spi_driver(ad5592r_s_driver);
 
 MODULE_AUTHOR ("Pop Ioan Daniel <Pop.Ioan-daniel@analog.com>");
 MODULE_DESCRIPTION("Analog Devices AD5592R Driver");
