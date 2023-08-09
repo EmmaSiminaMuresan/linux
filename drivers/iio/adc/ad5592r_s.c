@@ -11,6 +11,8 @@
 
 struct ad5592r_state {
         bool en;
+	u16 tmp_chan0;
+        u16 tmp_chan1;
 };
 
 static int ad5592r_read_raw(struct iio_dev *indio_dev,
@@ -24,9 +26,9 @@ static int ad5592r_read_raw(struct iio_dev *indio_dev,
 	{
 	case IIO_CHAN_INFO_RAW:
 		if(chan->channel)
-			*val = 10;
+			*val = st->tmp_chan1;
 		else
-			*val = 22;
+			*val =  st->tmp_chan0;
 
 		return IIO_VAL_INT;
 
@@ -50,7 +52,11 @@ static int ad5592r_write_raw(struct iio_dev *indio_dev,
         switch (mask)
         {
         case IIO_CHAN_INFO_RAW:
-                st->en = val;
+                if(chan->channel)
+                        st ->tmp_chan1 = val;
+                else
+                        st-> tmp_chan0= val;
+                return 0;
 	case IIO_CHAN_INFO_ENABLE:
 		st->en = val;
 		return 0;
@@ -91,9 +97,11 @@ static int ad5592r_probe(struct spi_device *spi)
         indio_dev = devm_iio_device_alloc(&spi->dev, 0);
         if (!indio_dev)
                 return -ENOMEM;
-		
+
 	st = iio_priv(indio_dev);
         st->en = 0;
+	st->tmp_chan1 = 0;
+        st->tmp_chan0 = 0;
 
         indio_dev->name = "ad5592r_s";
         indio_dev->info = &ad5592r_s_info;
