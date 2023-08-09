@@ -90,9 +90,37 @@ static const struct iio_chan_spec ad5592r_channel[] = {
                 .info_mask_separate = BIT(IIO_CHAN_INFO_RAW),
 		.info_mask_shared_by_all = BIT(IIO_CHAN_INFO_ENABLE),
         },
-        {
+	 {
                 .type = IIO_VOLTAGE,
                 .channel = 1,
+                .indexed = 1,
+                .info_mask_separate = BIT(IIO_CHAN_INFO_RAW),
+		.info_mask_shared_by_all = BIT(IIO_CHAN_INFO_ENABLE),
+        },
+	 {
+                .type = IIO_VOLTAGE,
+                .channel = 2,
+                .indexed = 1,
+                .info_mask_separate = BIT(IIO_CHAN_INFO_RAW),
+		.info_mask_shared_by_all = BIT(IIO_CHAN_INFO_ENABLE),
+        },
+	 {
+                .type = IIO_VOLTAGE,
+                .channel = 3,
+                .indexed = 1,
+                .info_mask_separate = BIT(IIO_CHAN_INFO_RAW),
+		.info_mask_shared_by_all = BIT(IIO_CHAN_INFO_ENABLE),
+        },
+	 {
+                .type = IIO_VOLTAGE,
+                .channel = 4,
+                .indexed = 1,
+                .info_mask_separate = BIT(IIO_CHAN_INFO_RAW),
+		.info_mask_shared_by_all = BIT(IIO_CHAN_INFO_ENABLE),
+        },
+        {
+                .type = IIO_VOLTAGE,
+                .channel = 5,
                 .indexed = 1,
                 .info_mask_separate = BIT(IIO_CHAN_INFO_RAW),
 		.info_mask_shared_by_all = BIT(IIO_CHAN_INFO_ENABLE),
