@@ -12,6 +12,8 @@
 
 struct adi_emu_state {
 	bool en;
+	u16 tmp_chan0;
+	u16 tmp_chan1;
 };
 
 static int adi_emu_read_raw(struct iio_dev *indio_dev,
@@ -29,9 +31,9 @@ static int adi_emu_read_raw(struct iio_dev *indio_dev,
 	return IIO_VAL_INT;
 	case IIO_CHAN_INFO_RAW:
 		if(chan->channel)
-			*val = 10;
+			*val = st->tmp_chan0;
 		else
-			*val = 22;
+			*val = st->tmp_chan1;
 		return IIO_VAL_INT;
 	default:
 		return -EINVAL;
@@ -51,7 +53,12 @@ static int adi_emu_write_raw(struct iio_dev *indio_dev,
 	case IIO_CHAN_INFO_ENABLE:
 		st->en = val;
 	return 0;
-	
+	case IIO_CHAN_INFO_RAW:
+		if(chan->channel)
+			st->tmp_chan0 = val;
+		else
+			st->tmp_chan1 = val;
+		return 0;
 	default:
 		return -EINVAL;
 	}
@@ -83,7 +90,7 @@ static int adi_emu_probe(struct spi_device *spi)
 {
 	struct iio_dev *indio_dev;
 	struct adi_emu_state *st;
-
+	
 	indio_dev = devm_iio_device_alloc(&spi->dev, sizeof(*st));
 
 	if (!indio_dev)
@@ -95,6 +102,8 @@ static int adi_emu_probe(struct spi_device *spi)
 	indio_dev->num_channels = ARRAY_SIZE(adi_emu_channel);
 
 	st = iio_priv(indio_dev);
+	st->tmp_chan0 = 0;
+	st->tmp_chan1 = 0;
 	st->en = 0;
 
 	return devm_iio_device_register(&spi->dev, indio_dev);
