@@ -10,10 +10,9 @@
 #include <linux/spi/spi.h>
 
 #include <linux/iio/iio.h>
+
 struct adi_emu_state {
         bool en;
-        u16 tmp_chan0;
-        u16 tmp_chan1;
 };
 
 static int adi_emu_read_raw(struct iio_dev *indio_dev,
@@ -27,9 +26,9 @@ static int adi_emu_read_raw(struct iio_dev *indio_dev,
         {
         case IIO_CHAN_INFO_RAW:
                 if(chan->channel)
-                        *val = st->tmp_chan1;
+                        *val = 10;
                 else
-                        *val = st->tmp_chan0;
+                        *val = 22;
                 return IIO_VAL_INT;
         case IIO_CHAN_INFO_ENABLE:
                 *val = st->en;
@@ -38,6 +37,7 @@ static int adi_emu_read_raw(struct iio_dev *indio_dev,
                 return -EINVAL;
         }
 }
+
 static int adi_emu_write_raw(struct iio_dev *indio_dev,
                             struct iio_chan_spec const *chan,
                             int val,
@@ -48,11 +48,7 @@ static int adi_emu_write_raw(struct iio_dev *indio_dev,
         switch (mask)
         {
         case IIO_CHAN_INFO_RAW:
-                if(chan->channel)
-                        st ->tmp_chan1 = val;
-                else
-                        st-> tmp_chan0= val;
-                return 0;
+                st->en = val;
         case IIO_CHAN_INFO_ENABLE:
                 st->en = val;
                 return 0;
@@ -92,9 +88,7 @@ static int adi_emu_probe(struct spi_device *spi)
 
         st = iio_priv(indio_dev);
         st->en = 0;
-        st->tmp_chan1 = 0;
-        st->tmp_chan0 = 0;
-	
+
         indio_dev->name = "iio_adi_emu";
         indio_dev->info = &adi_emu_info;
         indio_dev->channels = adi_emu_channel;
@@ -111,6 +105,6 @@ static struct spi_driver adi_emu_driver = {
 
 module_spi_driver(adi_emu_driver);
 
-MODULE_AUTHOR("Pop Nicolae-ADrian <p.nicu173@gmail.com>");
+MODULE_AUTHOR("Ilisei Adina <Ilisei.Va.Vasilica@student.utcluj.ro");
 MODULE_DESCRIPTION("Analog Devices ADC Emulator Driver");
 MODULE_LICENSE("GPL v2");
