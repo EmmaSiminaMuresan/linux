@@ -12,8 +12,12 @@
 
 struct ad5592r_s_state {
 	bool en;
-	u16 tmp_chan0;
-	u16 tmp_chan1;
+	u16 tmp_chan_0;
+	u16 tmp_chan_1;
+	u16 tmp_chan_2;
+	u16 tmp_chan_3;
+	u16 tmp_chan_4;
+	u16 tmp_chan_5;
 };
 
 static int ad5592r_s_read_raw(struct iio_dev *indio_dev,
@@ -26,10 +30,29 @@ static int ad5592r_s_read_raw(struct iio_dev *indio_dev,
 
 	switch (mask) {
 	case IIO_CHAN_INFO_RAW:
-		if (chan->channel)
-			*val = st->tmp_chan0;
-		else
-			*val = st->tmp_chan1;
+		switch (chan->channel)
+		{
+		case 0:
+			*val = st->tmp_chan_0;
+			break;
+		case 1:
+			*val = st->tmp_chan_1;
+			break;
+		case 2:
+			*val = st->tmp_chan_2;
+			break;
+		case 3:
+			*val = st->tmp_chan_3;
+			break;
+		case 4:
+			*val = st->tmp_chan_4;
+			break;
+		case 5:
+			*val = st->tmp_chan_5;
+			break;
+		default:
+			return -EINVAL; //error - Invalid Value
+		}
 		return IIO_VAL_INT;
 	case IIO_CHAN_INFO_ENABLE:
 		*val = st->en;
@@ -49,10 +72,29 @@ static int ad5592r_s_write_raw(struct iio_dev *indio_dev,
 
 	switch (mask) {
 	case IIO_CHAN_INFO_RAW:
-		if (chan->channel)
-			st->tmp_chan0 = val;
-		else
-			st->tmp_chan1 = val;
+		switch (chan->channel)
+		{
+		case 0:
+			st->tmp_chan_0 = val;
+			break;
+		case 1:
+			st->tmp_chan_1 = val;
+			break;
+		case 2:
+			st->tmp_chan_2 = val;
+			break;
+		case 3:
+			st->tmp_chan_3 = val;
+			break;
+		case 4:
+			st->tmp_chan_4 = val;
+			break;
+		case 5:
+			st->tmp_chan_5 = val;
+			break;
+		default:
+			return -EINVAL; //error - Invalid Value
+		}
 		return 0;
 	case IIO_CHAN_INFO_ENABLE:
 		st->en = val;
@@ -65,7 +107,6 @@ static int ad5592r_s_write_raw(struct iio_dev *indio_dev,
 static const struct iio_info ad5592r_s_info = {
 	.read_raw = &ad5592r_s_read_raw,
 	.write_raw = &ad5592r_s_write_raw,
-
 };
 
 static const struct iio_chan_spec ad5592r_channel[] = {
@@ -87,6 +128,42 @@ static const struct iio_chan_spec ad5592r_channel[] = {
 		// va fi ignorat
 		.info_mask_shared_by_all = BIT(IIO_CHAN_INFO_ENABLE),
 	},
+	{
+		.type = IIO_VOLTAGE,
+		.channel = 2,
+		.indexed = 1,
+		.info_mask_separate = BIT(IIO_CHAN_INFO_RAW),
+		// apare o singura data, daca este declarat la fiecare canal,
+		// va fi ignorat
+		.info_mask_shared_by_all = BIT(IIO_CHAN_INFO_ENABLE),
+	},
+	{
+		.type = IIO_VOLTAGE,
+		.channel = 3,
+		.indexed = 1,
+		.info_mask_separate = BIT(IIO_CHAN_INFO_RAW),
+		// apare o singura data, daca este declarat la fiecare canal,
+		// va fi ignorat
+		.info_mask_shared_by_all = BIT(IIO_CHAN_INFO_ENABLE),
+	},
+	{
+		.type = IIO_VOLTAGE,
+		.channel = 4,
+		.indexed = 1,
+		.info_mask_separate = BIT(IIO_CHAN_INFO_RAW),
+		// apare o singura data, daca este declarat la fiecare canal,
+		// va fi ignorat
+		.info_mask_shared_by_all = BIT(IIO_CHAN_INFO_ENABLE),
+	},
+	{
+		.type = IIO_VOLTAGE,
+		.channel = 5,
+		.indexed = 1,
+		.info_mask_separate = BIT(IIO_CHAN_INFO_RAW),
+		// apare o singura data, daca este declarat la fiecare canal,
+		// va fi ignorat
+		.info_mask_shared_by_all = BIT(IIO_CHAN_INFO_ENABLE),
+	},
 };
 
 static int ad5592r_s_probe(struct spi_device *spi)
@@ -94,14 +171,18 @@ static int ad5592r_s_probe(struct spi_device *spi)
 	struct iio_dev *indio_dev;
 	struct ad5592r_s_state *st;
 
-	indio_dev = devm_iio_device_alloc(&spi->dev, NULL);
+	indio_dev = devm_iio_device_alloc(&spi->dev, sizeof(*st));
 	if (!indio_dev)
 		return -ENOMEM; //eroare: Out Of Memory
 	
 	st = iio_priv(indio_dev);
 	st->en = 0;
-	st->tmp_chan0 = 0;
-	st->tmp_chan1 = 0;	
+	st->tmp_chan_0 = 0;
+	st->tmp_chan_1 = 0;
+	st->tmp_chan_2 = 0;
+	st->tmp_chan_3 = 0;
+	st->tmp_chan_4 = 0;
+	st->tmp_chan_5 = 0;	
 
 	indio_dev->name = "ad5592r_s";
 	indio_dev->info = &ad5592r_s_info;
