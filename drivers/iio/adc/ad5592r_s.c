@@ -10,45 +10,98 @@
 
 #include <linux/iio/iio.h>
 
+struct ad5592r_s_state {
+	bool en;
+	u16 tmp_chan0;
+	u16 tmp_chan1;
+	u16 tmp_chan2;
+	u16 tmp_chan3;
+	u16 tmp_chan4;
+	u16 tmp_chan5;
+};
+
 int ad5592r_s_read_raw(struct iio_dev *indio_dev,
 		       struct iio_chan_spec const *chan,
 		       int *val,
 		       int *val2,
 		       long mask)
 {
-	switch (mask){
+	struct ad5592r_s_state *st = iio_priv(indio_dev);
+
+	switch (mask) {
 	case IIO_CHAN_INFO_RAW:
-		switch (chan->channel)
-		{
+		switch(chan->channel) {
 		case 0:
-			*val = 0;
+			*val = st->tmp_chan0;
 			break;
 		case 1:
-			*val = 1;
+			*val = st->tmp_chan1;
 			break;
 		case 2:
-			*val = 2;
+			*val = st->tmp_chan2;
 			break;
 		case 3:
-			*val = 3;
+			*val = st->tmp_chan3;
 			break;
 		case 4:
-			*val = 4;
+			*val = st->tmp_chan4;
 			break;
 		case 5:
-			*val = 5;
-			break;
-		default:
-			return 404;
+			*val = st->tmp_chan5;
+			break;	
 		}
+		return IIO_VAL_INT;	
+	case IIO_CHAN_INFO_ENABLE:
+		st->en = val;
 		return IIO_VAL_INT;
 	default:
-		return -EINVAL;
+		return -EINVAL;	
+	}	
+}
+
+
+static int ad5592r_s_write_raw(struct iio_dev *indio_dev,
+			        struct iio_chan_spec const *chan,
+			        int val,
+			        int val2,
+			        long mask)
+{
+	struct ad5592r_s_state *st = iio_priv(indio_dev);
+
+	switch (mask) {
+	case IIO_CHAN_INFO_RAW:
+		switch(chan->channel) {
+		case 0:
+			st->tmp_chan0 = val;
+			break;
+		case 1:
+			st->tmp_chan1 = val;
+			break;
+		case 2:
+			st->tmp_chan2 = val;
+			break;
+		case 3:
+			st->tmp_chan3 = val;
+			break;
+		case 4:
+			st->tmp_chan4 = val;
+			break;
+		case 5:
+			st->tmp_chan5 = val;
+			break;
+		}
+		return 0;	
+	case IIO_CHAN_INFO_ENABLE:
+		st->en = val;
+		return 0;
+	default:
+		return -EINVAL;	
 	}
 }
 
 static const struct iio_info ad5592r_s_info = {
-	.read_raw = &ad5592r_s_read_raw,
+	.read_raw  = &ad5592r_s_read_raw,
+	.write_raw = &ad5592r_s_write_raw,
 };
 
 static const struct iio_chan_spec ad5592r_s_channel[] = {
@@ -58,6 +111,7 @@ static const struct iio_chan_spec ad5592r_s_channel[] = {
 		.channel = 0,
 		.indexed = 1,
 		.info_mask_separate = BIT(IIO_CHAN_INFO_RAW),
+		.info_mask_shared_by_all = BIT(IIO_CHAN_INFO_ENABLE),
 	},
 	{
 		.type    = IIO_VOLTAGE,
@@ -94,10 +148,21 @@ static const struct iio_chan_spec ad5592r_s_channel[] = {
 static int ad5592r_s_probe(struct spi_device *spi)
 {
 	struct iio_dev *indio_dev;
+	struct ad5592r_s_state *st;
 
-	indio_dev = devm_iio_device_alloc(&spi->dev, 0);
+	indio_dev = devm_iio_device_alloc(&spi->dev, sizeof(*st));
 	if (!indio_dev)
 		return -ENOMEM;
+
+	st = iio_priv(indio_dev); 
+	st->en = 0;
+	st->tmp_chan0 = 0;
+	st->tmp_chan1 = 0;
+	st->tmp_chan2 = 0;
+	st->tmp_chan3 = 0;
+	st->tmp_chan4 = 0;
+	st->tmp_chan5 = 0;
+
 	
 	indio_dev->name = "ad5592r_sA";
 	indio_dev->info = &ad5592r_s_info;
