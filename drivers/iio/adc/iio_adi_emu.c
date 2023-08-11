@@ -5,18 +5,87 @@
  * Copyright 2023 Analog Devices Inc.
  */
 
+#include  <asm/unaligned.h>
+#include <linux/bitfield.h>
 #include <linux/module.h>
 #include <linux/spi/spi.h>
 
 #include <linux/iio/iio.h>
 
+
+#define ADI_EMU_RD_MASK		BIT(7)
+#define ADI_EMU_ADDR_MASK       GENMASK(14,8) // primul bit neaparat 0 sa fie 
+					      // write
+#define ADI_EMU_VAL_MASK        GENMASK(7,0)
+
 struct adi_emu_state {
+	struct spi_device *spi;
 	bool en;
 	u16 tmp_chan0;
 	u16 tmp_chan1;
 };
 
-int adi_emu_read_raw(struct iio_dev *indio_dev, 
+// functiie pentru comunicare SPI
+// parsez cu pointer pt ca este read
+static int adi_emu_spi_read(struct adi_emu_state *st, u8 reg, u8 *val)
+{
+	u8 tx = 0;
+	u8 rx = 0;
+        int ret;
+
+	struct spi_transfer xfer[] = {
+	{
+		.tx_buf = NULL,
+		.rx_buf = NULL,
+		.len    = 1,
+		.cs_change = 1
+	},
+	{
+		.tx_buf = NULL,
+		.rx_buf = NULL,
+		.len    = 1,
+	}
+     };
+
+	tx |= ADI_EMU_RD_MASK; // am pus o masca 
+			       // am setat bitul 7 cu 1 
+			       // setari de bit cu OR
+	tx |= reg; // registrul pe care vreau sa il citesc
+	          // daca puneam tx = reg se suprascria bitul 7 setat cu 1
+	
+	xfer[0].tx_buf = &tx; // primul transfer
+	xfer[1].rx_buf = &rx; // al doilea transfer
+
+	ret = spi_sync_transfer(st->spi, xfer, 2); // 2 transferuri
+	if(ret)
+		return ret;
+
+	*val = rx; // ce am primit de la rx pun in *val
+	return 0;	
+}
+
+static int adi_emu_spi_write(struct adi_emu_state *st, u8 reg, u8 val)
+{
+	u16 msg = 0;
+	u16 tx = 0;
+	struct spi_transfer xfer = {
+		.tx_buf = NULL,
+		.len    = 2,
+	};
+
+	// populam tx pentru scriere
+	msg |= FIELD_PREP(ADI_EMU_ADDR_MASK, reg);// scriu primul Byte
+	msg |= FIELD_PREP(ADI_EMU_VAL_MASK, val); // scriu al doilea Byte
+
+	put_unaligned_be16(msg, &tx); // MSB sa fie primul si registrul
+
+	xfer.tx_buf = &tx;
+
+	return spi_sync_transfer(st->spi, &xfer, 1);//adresa xfer, si 1 transfer
+
+}
+
+static int adi_emu_read_raw(struct iio_dev *indio_dev, 
 			    struct iio_chan_spec const *chan,
 			    int *val,
 			    int *val2,
@@ -65,12 +134,25 @@ static int adi_emu_write_raw(struct iio_dev *indio_dev,
 	}	
 
 }
+
+static int adi_emu_reg_access (struct iio_dev *indio_dev,
+			       unsigned reg, unsigned writeval,
+			       unsigned *readval)
+{
+	struct adi_emu_state *st = iio_priv(indio_dev);
+
+	if(readval)
+		return adi_emu_spi_read(st, reg, (u8 *)readval);
+
+	return adi_emu_spi_write(st, reg, writeval);
+
+}
 	
 
 static const struct iio_info adi_emu_info = {
 	.read_raw = &adi_emu_read_raw,
 	.write_raw = &adi_emu_write_raw,
-
+	.debugfs_reg_access = &adi_emu_reg_access,
 };
 
 static const struct iio_chan_spec adi_emu_channel[] ={
@@ -108,6 +190,7 @@ static  int adi_emu_probe(struct spi_device *spi)
 	st->en = 0; // valoarea 0 la inceput
 	st->tmp_chan0 = 0;
 	st->tmp_chan1 = 0;
+	st->spi = spi;
 
 	indio_dev->name = "iio_adi-emu";
 	indio_dev->info = &adi_emu_info;
