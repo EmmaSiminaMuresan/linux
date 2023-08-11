@@ -5,17 +5,81 @@
  * Copyright (C) 2023 Analog Devices, Inc.
  */
 
+#include <asm/unaligned.h>
+#include <linux/bitfield.h>
 #include <linux/module.h>
 #include <linux/spi/spi.h>
 
 #include <linux/iio/iio.h>
 
+#define ADI_EMU_RD_MASK 	BIT(7)
+#define ADI_EMU_ADDR_MASK	GENMASK(14,8)
+#define ADI_EMU_VAL_MASK	GENMASK(7,0)
+
 struct adi_emu_state {
+	struct spi_device *spi;
 	bool en;
+	u16 tmp_chan0;
+	u16 tmp_chan1;
 };
 
+static int adi_emu_spi_read(struct adi_emu_state *st, u8 reg, u8 *val)
+{
+	u8 tx = 0;
+	u8 rx = 0;
+	int ret;
+	struct spi_transfer xfer[] = {
+		{
+			.tx_buf = NULL,
+			.rx_buf = NULL,
+			.len = 1,
+			.cs_change = 1
+		},
+		{
+			.tx_buf = NULL,
+			.rx_buf = NULL,
+			.len = 1,
+			// 
+		}
+	};
+
+	// tx = reg
+	tx |= ADI_EMU_RD_MASK;
+	tx |= reg;
+
+	xfer[0].tx_buf = &tx;
+	xfer[1].rx_buf = &rx;
+
+	ret = spi_sync_transfer(st->spi, xfer, 2);
+	if(ret)
+		return ret;
+	
+	*val = rx;
+
+	return 0;
+}
+
+static int adi_emu_spi_write(struct adi_emu_state *st, u8 reg, u8 val)
+{
+	u16 msg = 0;
+	u16 tx = 0;
+	struct spi_transfer xfer = {
+		.tx_buf = NULL,
+		.len = 2,
+	};
+
+	msg |= FIELD_PREP(ADI_EMU_ADDR_MASK, reg);
+	msg |= FIELD_PREP(ADI_EMU_VAL_MASK,val);
+	// tx = reg << 8;
+	put_unaligned_be16(msg, &tx);
+
+	xfer.tx_buf = &tx;
+
+	return spi_sync_transfer(st->spi, &xfer, 1);
+}
+
 static int adi_emu_read_raw(struct iio_dev *indio_dev,
-			    struct iio_chan_spec const *chan,
+    struct iio_chan_spec const *chan,
 			    int *val,
 			    int *val2,
 			    long mask)
@@ -24,9 +88,9 @@ static int adi_emu_read_raw(struct iio_dev *indio_dev,
 	switch(mask) {
 	case IIO_CHAN_INFO_RAW:
 		if(chan->channel)
-			*val = 10;
+			*val = st->tmp_chan1;
 		else
-			*val = 22;
+			*val = st->tmp_chan0;
 		return IIO_VAL_INT;
 	case IIO_CHAN_INFO_ENABLE:
 		*val = st->en;
@@ -48,6 +112,12 @@ static int adi_emu_write_raw(struct iio_dev *indio_dev,
 
 	switch(mask)
 	{
+		case IIO_CHAN_INFO_RAW:
+			if(chan->channel)
+				st->tmp_chan1 = val;
+			else
+				st->tmp_chan0 = val;
+			return 0;
 		case IIO_CHAN_INFO_ENABLE:
 			st->en = val;
 			return 0;
@@ -56,10 +126,27 @@ static int adi_emu_write_raw(struct iio_dev *indio_dev,
 	}
 }
 
+static int adi_emu_reg_acces(struct iio_dev *indio_dev,
+			     unsigned reg, unsigned writeval,
+			     unsigned *readval)
+{
+	struct adi_emu_state *st = iio_priv(indio_dev);
+
+	if(readval)
+	{
+
+		return adi_emu_spi_read(st,  reg,  (u8 *)readval);
+	}
+
+	return  adi_emu_spi_write(st, reg, writeval);
+}
+
 static const struct iio_info adi_emu_info = {
 	.read_raw = &adi_emu_read_raw,
 	.write_raw = &adi_emu_write_raw,
+	.debugfs_reg_access = &adi_emu_reg_acces,
 };
+
 
 static const struct iio_chan_spec adi_emu_channel[] = {
 	{
@@ -86,8 +173,12 @@ static int adi_emu_probe(struct spi_device *spi)
 	if(!indio_dev)
 		return -ENOMEM;
 	
+	
 	st = iio_priv(indio_dev);
+	st->spi = spi;
 	st->en = 0;
+	st->tmp_chan0 = 0;
+	st->tmp_chan1 = 0;
 
 	indio_dev->name = "iio-adi-emu";
 	indio_dev->info = &adi_emu_info;
