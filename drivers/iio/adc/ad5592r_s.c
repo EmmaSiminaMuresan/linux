@@ -12,11 +12,14 @@
 #include <linux/iio/iio.h>
 #include <linux/spi/spi.h>
 
-#define ADC_SEQ 0x2
+#define AD5592R_REG_ADC_SEQ	 0x2
+#define AD5592R_REG_ADC_CONFIG	 0x4
 
 #define ADI_WR_REG_MASK 	GENMASK(14, 11)
 #define ADI_WR_VAL_MASK 	GENMASK(8, 0)
 #define ADI_RD_VAL_MASK		GENMASK(11,0)
+
+#define ADI_ADC_EN_MASK		GENMASK(5,0)
 
 
 struct adi_ad5592r_s_state {
@@ -48,7 +51,7 @@ static int adi_ad5592r_s_spi_write(struct adi_ad5592r_s_state *st,
 	return spi_sync_transfer(st->spi, &xfer, 1);
 }
 
-static int adi_ad5592r_s_spi_red(struct adi_ad5592r_s_state *st,
+static int adi_ad5592r_s_spi_read(struct adi_ad5592r_s_state *st,
 			     u8 reg,
 			     u16 *val)
 {
@@ -77,7 +80,7 @@ static int adi_ad5592r_s_spi_red(struct adi_ad5592r_s_state *st,
 
 
 	// Select ADC channel to read from
-	msg |= FIELD_PREP(ADI_WR_REG_MASK, ADC_SEQ);
+	msg |= FIELD_PREP(ADI_WR_REG_MASK, AD5592R_REG_ADC_SEQ);
 	msg |= BIT(reg);
 
 	put_unaligned_be16(msg, &tx);
@@ -88,7 +91,6 @@ static int adi_ad5592r_s_spi_red(struct adi_ad5592r_s_state *st,
 	xfer[1].tx_buf = &tx;
 
 	// read value recieved
-
 	xfer[2].rx_buf = &rx;
 	rx &= ADI_RD_VAL_MASK;
 
@@ -195,7 +197,7 @@ static int adi_emu_reg_access(struct iio_dev *indio_dev, // return by iio
 	struct adi_ad5592r_s_state *st = iio_priv(indio_dev);
 
 	if (readval) 
-		return adi_ad5592r_s_spi_read(st, reg, (u8 *)readval);
+		return adi_ad5592r_s_spi_read(st, reg, (u16 *)readval);
 
 	return  adi_ad5592r_s_spi_write(st, reg, writeval);
 }
@@ -246,10 +248,22 @@ static const struct iio_chan_spec adi_5592r_s_channels[] = {
 	},
 };
 
+static int adi_ad5592r_s_adc_init(struct iio_dev *indio_dev, // return by iio 
+			          unsigned int reg,
+			          unsigned int writeval)
+{
+	// Set channels [5;0] as ADC inputs
+	// return adi_emu_reg_access(indio_dev, reg, writeval, NULL);
+	
+	struct adi_ad5592r_s_state *st = iio_priv(indio_dev);
+	return adi_ad5592r_s_spi_write(st, reg, writeval);
+}
+
 static int adi_ad5592r_s_probe(struct spi_device *spi)
 {
 	struct iio_dev *indio_dev;
 	struct adi_ad5592r_s_state *st;
+	int ret;
 
 	indio_dev = devm_iio_device_alloc(&spi->dev, sizeof(*st));
 	if(!indio_dev)
@@ -257,6 +271,7 @@ static int adi_ad5592r_s_probe(struct spi_device *spi)
 
 	st = iio_priv(indio_dev);
 	st->spi = spi;
+
 	st->en = 0;
 	st->temp_chann[0] = 0;
 	st->temp_chann[1] = 0;
@@ -264,13 +279,15 @@ static int adi_ad5592r_s_probe(struct spi_device *spi)
 	st->temp_chann[3] = 0;
 	st->temp_chann[4] = 0;
 	st->temp_chann[5] = 0;
-	// for(u16 i = 0; i<6; i++)
-	// 	st->temp_chann[i] = 0;
 
 	indio_dev->name = "ad5592r_s";
 	indio_dev->info = &adi_ad5592r_s_info;
 	indio_dev->channels = adi_5592r_s_channels;
 	indio_dev->num_channels = ARRAY_SIZE(adi_5592r_s_channels);
+
+	ret = adi_ad5592r_s_adc_init(indio_dev, AD5592R_REG_ADC_CONFIG, ADI_ADC_EN_MASK);
+	if (ret)
+		return ret;
 
 	return devm_iio_device_register(&spi->dev, indio_dev);
 }
