@@ -9,6 +9,18 @@
 #include <linux/spi/spi.h>
 #include <linux/iio/iio.h>
 
+#include <asm/unaligned.h>
+#include <linux/bitfield.h>
+
+#define ADC_SEQ 0x2
+
+#define AD5592R_RD_MASK 	BIT(15)
+#define AD5592R_RD_ADDR_MASK	GENMASK(14,11)
+#define AD5592R_RD_ADC_MASK	GENMASK(10,0)
+
+#define AD5592R_WR_ADDR_MASK	GENMASK(14,11)
+#define AD5592R_WR_VAL_MASK	GENMASK(8,0)
+
 struct ad5592r_state{
 	bool en;
 	u16 tmp_chan0;
@@ -17,7 +29,82 @@ struct ad5592r_state{
 	u16 tmp_chan3;
 	u16 tmp_chan4;
 	u16 tmp_chan5;
+
+	struct spi_device *spi;
 };
+
+static int ad5592r_spi_read(struct ad5592r_state *st, u16 reg, u16 *val)
+{
+	u16 tx = 0;
+	u16 rx = 0;
+	u16 msg = 0;
+	int ret;
+
+	struct spi_transfer xfer[] = {
+		{
+			.tx_buf = NULL,
+			.rx_buf = NULL,
+			.len = 2,
+			.cs_change = 1
+		},
+		{
+			.tx_buf = NULL,
+			.rx_buf = NULL,
+			.len = 2,
+		},
+		{
+			.tx_buf = NULL,
+			.rx_buf = NULL,
+			.len = 2,
+		},
+	};
+
+	//prima secventa
+	msg |= FIELD_PREP(AD5592R_RD_ADDR_MASK, ADC_SEQ);
+	msg |= BIT(reg);
+
+	put_unaligned_be16(msg, &tx);
+
+	xfer[0].tx_buf = &tx;
+
+	//a doua secventa
+
+	u16 tx_null = 0;
+	xfer[1].tx_buf = &tx_null;
+
+	//a treia secventa
+	xfer[2].rx_buf = &rx;
+
+	rx &= AD5592R_RD_ADC_MASK;
+
+	ret = spi_sync_transfer(st->spi, xfer, 3);
+
+	if(ret)
+		return ret;
+
+	*val = rx;
+
+	return 0;
+}
+
+static int ad5592r_spi_write(struct ad5592r_state *st, u16 reg, u16 val)
+{
+	u16 msg = 0;
+	u16 tx = 0;
+
+	struct spi_transfer xfer  = {
+		.tx_buf = NULL,
+		.len = 2,
+	};
+	msg |= FIELD_PREP(AD5592R_WR_ADDR_MASK, reg);
+	msg |= FIELD_PREP(AD5592R_WR_VAL_MASK, val);
+
+	put_unaligned_be16(msg, &tx);
+	xfer.tx_buf = &tx;
+
+	return spi_sync_transfer(st->spi, &xfer, 1);
+}
+
 
 static int ad5592r_write_raw(struct iio_dev *indio_dev,
 			     struct iio_chan_spec const *chan,
@@ -112,9 +199,24 @@ static int ad5592r_read_raw(struct iio_dev *indio_dev,
 	}
 };
 
+static int ad5592r_reg_acces(struct iio_dev *indio_dev,
+			       unsigned reg, unsigned writeval,
+			       unsigned *readval)
+{
+	struct ad5592r_state *st = iio_priv(indio_dev);
+
+	if(readval)
+	{
+		return ad5592r_spi_read(st, reg, (u16 *)readval);
+	}
+
+	return ad5592r_spi_write(st, reg, writeval);
+}
+
 static const struct iio_info ad5592r_s_info = {
 	.read_raw = &ad5592r_read_raw,
 	.write_raw = &ad5592r_write_raw,
+	.debugfs_reg_access = &ad5592r_reg_acces,
 };
 
 static const struct iio_chan_spec ad5592r_channel[] ={
@@ -168,6 +270,7 @@ static int ad5592r_probe(struct spi_device *spi)
 		return -ENOMEM;
 
 	st = iio_priv(indio_dev);
+	st->spi = spi;
 	st->en = 0;
 	st->tmp_chan0 = 0;
 	st->tmp_chan1 = 0;
