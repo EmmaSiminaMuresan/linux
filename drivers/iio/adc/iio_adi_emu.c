@@ -46,6 +46,8 @@ static int adi_emu_spi_read(struct adi_emu_state *st, u8 reg, u8 *val)
 	tx = reg;
 	tx |= ADI_EMU_RD_MASK;
 
+	dev_info(&st->spi->dev, "tx at read = 0%x", tx);
+
 	xfer[0].tx_buf = &tx;
 	xfer[1].rx_buf = &rx;
 
@@ -71,7 +73,11 @@ static int adi_emu_spi_write(struct adi_emu_state *st, u8 reg, u8 val)
 	msg |= FIELD_PREP(ADI_EMU_ADDR_MASK, reg);
 	msg |= FIELD_PREP(ADI_EMU_VAL_MASK, val);
 
+	dev_info(&st->spi->dev, "msg = 0%x", msg);
+
 	put_unaligned_be16(msg, &tx);
+	
+	dev_info(&st->spi->dev, "tx at write = 0%x", tx);
 
 	xfer.tx_buf = &tx;
 	
