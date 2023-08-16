@@ -35,8 +35,12 @@ static int adi_emu_spi_write(struct adi_emu_state *st, u8 reg, u8 val)
 	msg |= FIELD_PREP(ADI_EMU_ADDR_MASK, reg);
 	msg |= FIELD_PREP(ADI_EMU_VAL_MASK, val);
 
+	dev_info(&st->spi->dev, "tx msg = 0x%x", tx);
+
 	put_unaligned_be16(msg, &tx);
 	xfer.tx_buf = &tx;
+
+	dev_info(&st->spi->dev, "tx at write = 0x%x", tx);
 
 	return spi_sync_transfer(st->spi, &xfer, 1);
 
@@ -45,8 +49,8 @@ static int adi_emu_spi_write(struct adi_emu_state *st, u8 reg, u8 val)
 
 static int adi_emu_spi_read(struct adi_emu_state *st, u8 reg, u8 *val)
 {
-	u8 tx;
-	u8 rx;
+	u8 tx = 0;
+	u8 rx = 0;
 	int ret;
 
 	struct spi_transfer xfer[] = {
@@ -65,6 +69,7 @@ static int adi_emu_spi_read(struct adi_emu_state *st, u8 reg, u8 *val)
 
 	tx |= ADI_EMU_RD_MASK;
 	tx |= reg;
+	dev_info(&st->spi->dev, "tx at read = 0x%x", tx);
 	
 	xfer[0].tx_buf = &tx;
 	xfer[1].rx_buf = &rx;
@@ -95,9 +100,9 @@ static int adi_emu_read_raw(struct iio_dev *indio_dev,
 			*val = st->tmp_chan1;
 		return IIO_VAL_INT;
 
-		case IIO_CHAN_INFO_ENABLE:
-			*val = st->en;
-			return IIO_VAL_INT;
+	case IIO_CHAN_INFO_ENABLE:
+		*val = st->en;
+		return IIO_VAL_INT;
 	default:
 		return -EINVAL;
 	}
@@ -113,11 +118,13 @@ static int adi_emu_write_raw(struct iio_dev *indio_dev,
 	struct adi_emu_state *st = iio_priv(indio_dev);
 
 	switch (mask) {
-    	case IIO_CHAN_INFO_ENABLE:
+    	case IIO_CHAN_INFO_RAW:
 		if (chan->channel)
-			st->tmp_chan0;
+			st->tmp_chan0 = val;
 		else
-			st->tmp_chan1;
+			st->tmp_chan1 = val;
+		return 0;
+    	case IIO_CHAN_INFO_ENABLE:
 			st->en = val;
 		return 0;
 	default:
@@ -173,11 +180,11 @@ static int adi_emu_probe(struct spi_device *spi)
         if (!indio_dev)
                 return -ENOMEM;
 
-		st = iio_priv(indio_dev);
-		st->spi = spi;
-		st->en = 0;
-		st-> tmp_chan0;
-		st->tmp_chan1;
+	st = iio_priv(indio_dev);
+	st->spi = spi;
+	st->en = 0;
+	st->tmp_chan0 = 0;
+	st->tmp_chan1 = 0;
         indio_dev->name = "iio-adi-emu";
         indio_dev->info = &adi_emu_info;
         indio_dev->channels = adi_emu_channel;
