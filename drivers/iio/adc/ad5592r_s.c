@@ -11,10 +11,10 @@
 #include <linux/spi/spi.h>
 #include <linux/iio/iio.h>
 
-#define ADC_SEQ 0x2
 #define AD5592R_S_REG_READBACK  0x7
 #define AD5592R_S_RDB_EN_MASK   BIT(6)
 #define AD5592R_S_RDB_REG_MASK  GENMASK(5,2)
+
 #define AD5592R_S_ADDR_MASK     GENMASK(14,11)
 #define AD5592R_S_VAL_MASK      GENMASK(10,0)
 
@@ -52,12 +52,16 @@ static int ad5592r_s_spi_read_ctl(struct ad5592r_s_state *st, u8 reg, u16 *val)
         msg |= FIELD_PREP(AD5592R_S_ADDR_MASK, AD5592R_S_REG_READBACK);
         msg |= AD5592R_S_RDB_EN_MASK;
         msg |= FIELD_PREP(AD5592R_S_RDB_REG_MASK ,reg);
+
         put_unaligned_be16(msg, &tx);
+
         ret = spi_sync_transfer(st->spi, &xfer, 1);
+
         if(ret){
                 dev_err(&st->spi->dev, "Failed at SPI WR transfer");
                 return ret;
         }
+
         ret = ad5592r_s_spi_nop(st, &rx);
         if(ret){
                 dev_err(&st->spi->dev, "Failed at SPI NOP transfer");
@@ -67,7 +71,7 @@ static int ad5592r_s_spi_read_ctl(struct ad5592r_s_state *st, u8 reg, u16 *val)
         return 0;
 }
 
-static int ad5592r_s_spi_write(struct ad5592r_s_state *st, u16 reg, u16 val)
+static int ad5592r_s_spi_write(struct ad5592r_s_state *st, u8 reg, u16 val)
 {
         u16 msg = 0;
         u16 tx = 0;
@@ -83,7 +87,7 @@ static int ad5592r_s_spi_write(struct ad5592r_s_state *st, u16 reg, u16 val)
         return spi_sync_transfer(st->spi, &xfer, 1);
 }
 
-int ad5592r_s_read_raw(struct iio_dev *indio_dev,
+static int ad5592r_s_read_raw(struct iio_dev *indio_dev,
 		       struct iio_chan_spec const *chan,
 		       int *val,
 		       int *val2,
@@ -117,7 +121,7 @@ int ad5592r_s_read_raw(struct iio_dev *indio_dev,
 		}
 		return IIO_VAL_INT;	
 	case IIO_CHAN_INFO_ENABLE:
-		st->en = val;
+		*val = st->en;
 		return IIO_VAL_INT;
 	default:
 		return -EINVAL;	
@@ -235,6 +239,7 @@ static int ad5592r_s_probe(struct spi_device *spi)
 		return -ENOMEM;
 
 	st = iio_priv(indio_dev); 
+	st->spi = spi;
 	st->en = 0;
 	st->tmp_chan0 = 0;
 	st->tmp_chan1 = 0;
