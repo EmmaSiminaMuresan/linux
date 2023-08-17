@@ -10,19 +10,23 @@
 #include <linux/iio/iio.h>
 #include <linux/spi/spi.h>
 
+#define ADI_EMU_REG_DEVICE_CONFIG	0x2
+#define  ADI_EMU_MASK_PWD		BIT(5)
+#define ADI_EMU_REG_CNVST		0x3
+#define  ADI_EMU_MASK_CNVST		BIT(0)
+#define ADI_EMU_REG_CH0_DATA_HIGH	0x4
+#define ADI_EMU_REG_CH0_DATA_LOW	0x5
+#define ADI_EMU_REG_CH1_DATA_HIGH	0x6
+#define ADI_EMU_REG_CH1_DATA_LOW	0x7
 
-
-#define ADI_EMU_RD_MASK 	    BIT(7)
-#define ADI_EMU_ADDR_MASK	    GENMASK(14, 8)
-#define ADI_EMU_VAL_MASK	    GENMASK(7, 0)	
+#define ADI_EMU_RD_MASK			BIT(7)
+#define ADI_EMU_ADDR_MASK		GENMASK(14, 8)
+#define ADI_EMU_VAL_MASK		GENMASK(7, 0)	
 
 
 struct adi_emu_state {
 	struct spi_device* spi;
-
 	bool en;
-	u16 temp_chan0;
-	u16 temp_chan1;
 };
 
 static int adi_emu_spi_read(struct adi_emu_state *st,
@@ -48,6 +52,8 @@ static int adi_emu_spi_read(struct adi_emu_state *st,
 
 	tx |= reg;
 	tx |= ADI_EMU_RD_MASK; // DE VAZUT DACA E OK
+	
+	dev_info(&st->spi->dev, "tx at read = 0x%x", tx);
 
 	xfer[0].tx_buf = &tx;
 	xfer[1].rx_buf = &rx;
@@ -75,12 +81,56 @@ static int adi_emu_spi_write(struct adi_emu_state *st,
 
 	msg |= FIELD_PREP(ADI_EMU_ADDR_MASK, reg);
 	msg |= FIELD_PREP(ADI_EMU_VAL_MASK, val);
+	dev_info(&st->spi->dev, "msg at write= 0x%x", msg);
 
 	put_unaligned_be16(msg, &tx);
 
 	xfer.tx_buf = &tx;
+	dev_info(&st->spi->dev, "tx at write = 0x%x", tx);
+
 
 	return spi_sync_transfer(st->spi, &xfer, 1);
+}
+
+static int adi_emu_read_adc(struct adi_emu_state* st, int chan, int *val)
+{
+	u8 high;
+	u8 low;
+	int ret = 0;
+
+	ret = adi_emu_spi_write(st, ADI_EMU_REG_CNVST, ADI_EMU_MASK_CNVST);
+	if (ret) {
+		dev_err(&st->spi->dev, "Error at conversion");
+		return ret;
+	}
+
+	if(chan) 
+	{
+		ret = adi_emu_spi_read(st, ADI_EMU_REG_CH1_DATA_HIGH, &high);
+		if (ret) {
+			dev_err(&st->spi->dev, "Error at CH1 high read");
+			return ret;
+		}
+
+		ret = adi_emu_spi_read(st, ADI_EMU_REG_CH1_DATA_LOW, &low);
+		if (ret) {
+			dev_err(&st->spi->dev, "Error at CH1 low read");
+			return ret;
+		}
+	} else 
+	{
+		ret = adi_emu_spi_read(st, ADI_EMU_REG_CH0_DATA_HIGH, &high);
+		if (ret) {
+			dev_err(&st->spi->dev, "Error at CH0 high read");
+			return ret;
+		}
+
+		ret = adi_emu_spi_read(st, ADI_EMU_REG_CH0_DATA_LOW, &low);
+		
+	}
+
+	*val = (high << 8) | low;
+	return 0;
 }
 
 static int adi_emu_read_raw(struct iio_dev *indio_dev,
@@ -90,14 +140,15 @@ static int adi_emu_read_raw(struct iio_dev *indio_dev,
 			    long mask)
 {
 	struct adi_emu_state *st = iio_priv(indio_dev);
+	int ret = 0;
 
 	switch (mask)
 	{
 	case IIO_CHAN_INFO_RAW:
-		if(chan->channel) {
-			*val = st->temp_chan1;
-		} else {
-			*val = st->temp_chan0;
+		ret = adi_emu_read_adc(st, chan->channel, val);
+		if (ret) {
+			dev_err(&st->spi->dev, "Error at read_adc %d", chan->channel);
+			return ret;
 		}
 		return IIO_VAL_INT;
 	case IIO_CHAN_INFO_ENABLE:
@@ -115,19 +166,21 @@ static int adi_emu_write_raw(struct iio_dev *indio_dev,
 			     long mask)
 {
 	struct adi_emu_state *st = iio_priv(indio_dev);
+	int ret = 0;
 	
 	switch(mask)
 	{
-	case IIO_CHAN_INFO_RAW:
-		if(chan->channel) {
-			st->temp_chan1 = val;
-		} else {
-			st->temp_chan0 = val;
-		}
-		return 0;
-
 	case IIO_CHAN_INFO_ENABLE:
 		st->en = val;
+
+		ret = adi_emu_spi_write(st, 
+					ADI_EMU_REG_DEVICE_CONFIG,
+					FIELD_PREP(ADI_EMU_MASK_PWD, !val));//toggle bit
+		if (ret) {
+			dev_err(&st->spi->dev, "Error while writing enable");
+			return ret;
+		}
+
 		return 0;
 	default:
 		return -EINVAL;
@@ -184,8 +237,6 @@ static int adi_emu_probe(struct spi_device *spi)
 	st = iio_priv(indio_dev);
 	st->spi = spi;
 	st->en = 0; //default start value
-	st->temp_chan0 = 0;
-	st->temp_chan1 = 0;
 
 	indio_dev->name = "iio-adi-emu";
 	indio_dev->info = &adi_emu_info;
