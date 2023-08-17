@@ -1,11 +1,8 @@
- /*
- *
- * SPDX-License-Identifier : GPL-2.0-only
- * 
+ // SPDX-License-Identifier: GPL-2.0-only
+/*
  * ADI ADC emulator driver
  *
  * Copyright 2023 Analog Devices Inc.
- *
  */
 
 #include <asm/unaligned.h>
@@ -15,6 +12,15 @@
 
 #include <linux/iio/iio.h>
 
+#define ADI_EMU_REG_DEVICE_CFG		0x2
+#define  ADI_EMU_MASK_PWD		BIT(5)
+#define ADI_EMU_REG_CNVST		0x3
+#define  ADI_EMU_MASK_CNVST		BIT(0)
+#define ADI_EMU_REG_CH0_DATA_HIGH	0x4
+#define ADI_EMU_REG_CH0_DATA_LOW	0x5
+#define ADI_EMU_REG_CH1_DATA_HIGH	0x6
+#define ADI_EMU_REG_CH1_DATA_LOW	0x7
+
 #define ADI_EMU_RD_MASK		BIT(7)
 #define ADI_EMU_ADDR_MASK	GENMASK(14,8)
 #define ADI_EMU_VAL_MASK	GENMASK(7,0)
@@ -22,8 +28,6 @@
 struct adi_emu_state {
 	struct spi_device *spi;
 	bool en;
-	u16 tmp_chan0;
-	u16 tmp_chan1;
 };
 
 static int adi_emu_spi_read(struct adi_emu_state *st, u8 reg, u8 *val)
@@ -33,22 +37,22 @@ static int adi_emu_spi_read(struct adi_emu_state *st, u8 reg, u8 *val)
 	int ret;
 
 	struct spi_transfer xfer[] = {
-		{	// transfer de write, ce primim pe rx ne intereseaza
-			.tx_buf = NULL, //const pointer void
+		{
+			.tx_buf = NULL,
 			.rx_buf = NULL,
-			.len = 1
+			.len = 1,
+			.cs_change = 1
 		},
-		{	// transfer de read, ce transmitem pe tx ne intereseaza
-			.tx_buf = NULL, //const pointer void
+		{
+			.tx_buf = NULL,
 			.rx_buf = NULL,
-			.len = 1
+			.len = 1,
 		}
-		
-		
 	};
-	
+
 	tx |= ADI_EMU_RD_MASK;
-	tx |= reg; //address
+	tx |= reg;
+	dev_info(&st->spi->dev, "tx at read = 0x%x", tx);
 
 	xfer[0].tx_buf = &tx;
 	xfer[1].rx_buf = &rx;
@@ -67,133 +71,176 @@ static int adi_emu_spi_write(struct adi_emu_state *st, u8 reg, u8 val)
 	u16 tx = 0;
 	struct spi_transfer xfer = {
 		.tx_buf = NULL,
-		.len = 2, // 2 bits: unde vrem sa scriem si ce
+		.len = 2,
 	};
 
-	
-	msg |= FIELD_PREP(ADI_EMU_ADDR_MASK, reg); //shiftare cu mascare
-	msg |= FIELD_PREP(ADI_EMU_VAL_MASK, val);
+	msg |= FIELD_PREP(ADI_EMU_ADDR_MASK, reg);
+	msg |= FIELD_PREP(ADI_EMU_VAL_MASK, reg);
+	dev_info(&st->spi->dev, "msg = 0x%x", msg);
 
-	put_unaligned_be16(msg, &tx); //in interiorului nostru msb sa fie primul si sa fie registru
+	put_unaligned_be16(msg, &tx);
+	dev_info(&st->spi->dev, "tx at write = 0x%x", tx);
 
 	xfer.tx_buf = &tx;
 
 	return spi_sync_transfer(st->spi, &xfer, 1);
 }
 
+static int adi_emu_read_adc(struct adi_emu_state *st, int chan, int *val)
+{
+	u8 high;
+	u8 low;
+	int ret;
+
+	ret = adi_emu_spi_write(st, ADI_EMU_REG_CNVST, ADI_EMU_MASK_CNVST);
+	if (ret){
+		dev_err(&st->spi->dev, "Error at conversion");
+		return ret;
+	}
+
+	if (chan){
+			ret = adi_emu_spi_read(st, ADI_EMU_REG_CH1_DATA_HIGH, &high);
+			if (ret) {
+				dev_err(&st->spi->dev, "Error at ch1 high read");
+				return ret;
+			}
+
+			ret = adi_emu_spi_read(st, ADI_EMU_REG_CH1_DATA_LOW, &low);
+			if (ret) {
+				dev_err(&st->spi->dev, "Error at ch1 low read");
+				return ret;
+			}
+		}
+		else {
+			ret = adi_emu_spi_read(st, ADI_EMU_REG_CH0_DATA_HIGH, &high);
+			if (ret) {
+				dev_err(&st->spi->dev, "Error at ch0 high read");
+				return ret;
+			}
+
+			ret = adi_emu_spi_read(st, ADI_EMU_REG_CH0_DATA_LOW, &low);
+			if (ret) {
+				dev_err(&st->spi->dev, "Error at ch0 low read");
+				return ret;
+			}
+		}
+
+		*val = (high << 8) | low;
+		return 0;
+}
+
 static int adi_emu_read_raw(struct iio_dev *indio_dev,
 			    struct iio_chan_spec const *chan,
 			    int *val,
 			    int *val2,
-		            long  mask)
+			    long mask)
 {
-	struct adi_emu_state  *st = iio_priv(indio_dev);
+	struct adi_emu_state *st = iio_priv(indio_dev);
+	int ret;
 
-	switch (mask)	{
-		case IIO_CHAN_INFO_RAW:
-			if (chan->channel)
-				*val = st->tmp_chan1;
-			else
-				*val = st->tmp_chan0;
-			return IIO_VAL_INT;
-		case IIO_CHAN_INFO_ENABLE:
-			*val  =  st->en;
-			return IIO_VAL_INT;
-		default:
-			return -EINVAL;
-			
+	switch (mask) {
+	case IIO_CHAN_INFO_RAW:
+		ret = adi_emu_read_adc(st, chan->channel, val);
+		if (ret) {
+			dev_err(&st->spi->dev, "Error at read adc %d", chan->channel);
+			return ret;
+		}
+		return IIO_VAL_INT;
+	case IIO_CHAN_INFO_ENABLE:
+		*val = st->en;
+		return IIO_VAL_INT;
+	default:
+		return -EINVAL;
 	}
-};
-	
+}
+
 static int adi_emu_write_raw(struct iio_dev *indio_dev,
-			    struct iio_chan_spec const *chan,
-			    int val,
-			    int val2,
-		            long  mask)
+			     struct iio_chan_spec const *chan,
+			     int val,
+			     int val2,
+			     long mask)
 {
-	struct adi_emu_state  *st = iio_priv(indio_dev);
+	struct adi_emu_state *st = iio_priv(indio_dev);
+	int ret;
 
-	switch (mask)	{
-		case IIO_CHAN_INFO_RAW:
-			if (chan->channel)
-				st->tmp_chan1 = val;
-			else
-				st->tmp_chan0 = val;
-			return 0;
-		case IIO_CHAN_INFO_ENABLE:
-			st->en = val;
-			return IIO_VAL_INT;
-		default: 
-			return -EINVAL;
+	switch (mask) {
+	case IIO_CHAN_INFO_ENABLE:
+		st->en = val;
+
+		ret = adi_emu_spi_write(st,ADI_EMU_REG_DEVICE_CFG,
+				        FIELD_PREP(ADI_EMU_MASK_PWD, !val));
+			if(ret){
+				dev_err(&st->spi->dev, "Error at writing enable");
+				return ret;
+			}
+
+		return 0;
+	default:
+		return -EINVAL;
 	}
-};		
+}
 
 static int adi_emu_reg_access(struct iio_dev *indio_dev,
 			      unsigned reg, unsigned writeval,
 			      unsigned *readval)
 {
-	struct adi_emu_state  *st = iio_priv(indio_dev);
+	struct adi_emu_state *st = iio_priv(indio_dev);
 
 	if(readval)
 		return adi_emu_spi_read(st, reg, (u8 *)readval);
-
+	
 	return adi_emu_spi_write(st, reg, writeval);
 }
-
-static const struct iio_info adi_emu_info = {
+		
+static const struct iio_info adi_emu_info =  {
 	.read_raw = &adi_emu_read_raw,
 	.write_raw = &adi_emu_write_raw,
 	.debugfs_reg_access = &adi_emu_reg_access,
 };
 
 static const struct iio_chan_spec adi_emu_channel[] = {
-	{
-		.type = IIO_VOLTAGE,
+	{	
+		.type= IIO_VOLTAGE,
 		.channel = 0,
 		.indexed = 1,
 		.info_mask_separate = BIT(IIO_CHAN_INFO_RAW),
-		.info_mask_shared_by_all = BIT(IIO_CHAN_INFO_ENABLE), 
-		
+		.info_mask_shared_by_all = BIT(IIO_CHAN_INFO_ENABLE),
 	},
-	{
-		.type = IIO_VOLTAGE,
+	{	
+		.type= IIO_VOLTAGE,
 		.channel = 1,
 		.indexed = 1,
 		.info_mask_separate = BIT(IIO_CHAN_INFO_RAW),
 		.info_mask_shared_by_all = BIT(IIO_CHAN_INFO_ENABLE),
 	}
-
 };
 
-static int adi_emu_probe(struct spi_device *spi){
-	//prima functie apelata dupa ce s-a inregistrat driverul in spi
-	struct iio_dev *indio_dev; // driver
+static int adi_emu_probe(struct spi_device *spi)
+{
+	struct iio_dev *indio_dev;
 	struct adi_emu_state *st;
 
-	indio_dev = devm_iio_device_alloc(&spi->dev,sizeof(*st));
+	indio_dev = devm_iio_device_alloc(&spi->dev, sizeof(*st));
 	if (!indio_dev)
-		return -ENOMEM; //eroare de memorie -> se returneaza codul de eroare fara mesaj
-	
-	st = iio_priv(indio_dev);
+		return -ENOMEM;
+
+        st = iio_priv(indio_dev);
 	st->spi = spi;
 	st->en = 0;
-	st->tmp_chan0 = 0;
-	st->tmp_chan1 = 0;
 
 	indio_dev->name = "iio-adi-emu";
 	indio_dev->info = &adi_emu_info;
-	indio_dev->channels = adi_emu_channel; // array of channels
-	indio_dev->num_channels  = ARRAY_SIZE(adi_emu_channel); 
+	indio_dev->channels = adi_emu_channel;
+	indio_dev->num_channels = ARRAY_SIZE(adi_emu_channel);
 
 	return devm_iio_device_register(&spi->dev,indio_dev);
-
-};
+}
 
 static struct spi_driver adi_emu_driver = {
 	.driver = {
 		.name = "iio-adi-emu",
 	},
-	.probe = adi_emu_probe,	
+	.probe = adi_emu_probe,
 };
 module_spi_driver(adi_emu_driver);
 
